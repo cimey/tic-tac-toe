@@ -35,8 +35,6 @@ io.on('connection', socket => {
     socket.on('disconnect', () => {
         io.emit('userDisconnected', users[socket.id]);
         delete users[socket.id];
-        if (roomId) io.to(roomId).emit('userList', users);
-
         for (let room in rooms) {
             rooms[room].players = rooms[room].players.filter(id => id !== socket.id);
             io.to(room).emit('userList', users);
