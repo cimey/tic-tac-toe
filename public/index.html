@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Tic-Tac-Toe</title>
+</head>
+
+<body>
+  <div class="container">
+    <div id="userList" style="display: none;">
+      <div lass="user-box">Player 1: cuma</div>
+      <div class="user-box you">Player 2: cuma (You)</div>
+    </div>
+
+    <h3 id="username-header" style="display: none;"> </h3>
+    <h3 id="room-header" style="display: none;"> </h3>
+    <h3 id="opponent" style="display: none;"> </h3>
+
+
+    <div id="setup">
+      <input type="text" id="username" placeholder="Enter your name">
+      <button onclick="register()">Continue</button>
+    </div>
+
+    <div id="room-selection" style="display:none;">
+      <div id="roomDiv">
+        <h2>Rooms</h2>
+        <ul id="room-list"></ul>
+      </div>
+
+
+      <div>
+        <input type="text" id="new-room" style="width: 60%;" placeholder="Create new room">
+        <button onclick="createRoom()" style="width: 30%;">Add Room</button>
+      </div>
+
+    </div>
+
+    <div style="display:none;" id="game">
+      <div id="turn">Your turn</div>
+      <table id="board">
+        <tr>
+          <td data-index="0"></td>
+          <td data-index="1"></td>
+          <td data-index="2"></td>
+        </tr>
+        <tr>
+          <td data-index="3"></td>
+          <td data-index="4"></td>
+          <td data-index="5"></td>
+        </tr>
+        <tr>
+          <td data-index="6"></td>
+          <td data-index="7"></td>
+          <td data-index="8"></td>
+        </tr>
+      </table>
+      <button (click)="resetGame()" id="reset-game-btn" style="display: none;">Reset Game</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client.js"></script>
+    <link rel="stylesheet" href="style.css">
+</body>
+
+</html>
