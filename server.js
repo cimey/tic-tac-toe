@@ -39,6 +39,7 @@ io.on('connection', socket => {
 
         for (let room in rooms) {
             rooms[room].players = rooms[room].players.filter(id => id !== socket.id);
+            io.to(room).emit('userList', users);
             if (rooms[room].players.length === 0) {
                 delete rooms[room];
             }
