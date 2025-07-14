@@ -1,6 +1,5 @@
 // import {Game, Room} from './public/models.js'
 
-const { create } = require('domain');
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -11,9 +10,14 @@ const io = socketIo(server);
 
 app.use(express.static('public'));
 
+const statuses = {
+    GameOver: 'GameOver',
+    WaitingForOpponent: 'WaitingForOpponent',
+    Playing: 'Playing',
+    OpponentLeft: 'OpponentLeft'
+}
 let rooms = {};
 let users = {};
-let roms = [];
 
 io.on('connection', socket => {
 
@@ -35,11 +39,22 @@ io.on('connection', socket => {
     socket.on('disconnect', () => {
         io.emit('userDisconnected', users[socket.id]);
         delete users[socket.id];
+
         for (let room in rooms) {
+
+            if (rooms[room].players.indexOf(socket.id) <= -1) return;
+
             rooms[room].players = rooms[room].players.filter(id => id !== socket.id);
+
             io.to(room).emit('userList', users);
+            io.to(room).emit('playerLeft', socket.id);
+
             if (rooms[room].players.length === 0) {
+
+                console.log('room deleted', room)
                 delete rooms[room];
+
+                io.emit('roomList', rooms);
             }
         }
     });
@@ -50,21 +65,29 @@ io.on('connection', socket => {
 
     socket.on('play', ({ roomId, index, gameState }) => {
         socket.to(roomId).emit('update', { index: index, state: Array.from(gameState) });
-
+        
+        rooms[roomId].state = gameState;
+        
         //check winner for X and O
         if (checkWinner('O', gameState)) {
+            rooms[roomId].status = statuses.GameOver;
+            rooms[roomId].scores['O']++;
             io.to(roomId).emit('gameOver', { winner: 'O' });
         }
         else if (checkWinner('X', gameState)) {
+            rooms[roomId].status = statuses.GameOver;
+            rooms[roomId].scores['X']++;
             io.to(roomId).emit('gameOver', { winner: 'X' });
         }
         else if (checkDraw(gameState)) {
+            rooms[roomId].status = statuses.GameOver;
+            rooms[roomId].scores['Draw']++;
             io.to(roomId).emit('gameOver', { winner: '' });
         }
-        gameState = Array(9).map(x => '');
         console.log(`Player ${socket.id} played in room ${roomId} at index ${index} gameState ${gameState}`);
 
         io.emit('roomList', rooms);
+        io.to(roomId).emit('roomStatus', rooms[roomId]);
     });
 
     socket.on('createRoom', ({ room, uuid }) => {
@@ -79,46 +102,71 @@ io.on('connection', socket => {
         io.emit('roomList', rooms);
     });
 
-    socket.on('restart', () => { })
-
     socket.on('userLeftRoom', ({ roomId, userId }) => {
 
         if (!rooms[roomId]) return;
+        const room = rooms[roomId];
 
-        let idx = rooms[roomId].players.indexOf(userId);
-        rooms[roomId].players.splice(idx, 1);
+        let idx = room.players.indexOf(userId);
+        room.players.splice(idx, 1);
+
+        if (room.players.length === 0) {
+
+            console.log('room deleted', room)
+            delete rooms[room];
+        }
+
         socket.leave(roomId);
+        room.status = statuses.OpponentLeft;
 
-        io.to(roomId).emit('roomUsers', rooms[roomId].players.map(x => ({ name: users[x], id: x })))
+        io.to(roomId).emit('roomUsers', room.players.map(x => ({ name: users[x], id: x })));
+
+        io.to(roomId).emit('roomStatus', room);
+
+        io.to(roomId).emit('playerLeft', socket.id);
+
         io.emit('roomList', rooms);
     });
 
-    socket.on('gameOver', (uuid, winner) => {
-        rooms[uuid].status = 'gameOver';
-        rooms[uuid].scores[winner]++;
+    socket.on('updateWinner', ({ roomId, winner }) => {
+        console.log('roomid', roomId);
+        console.log('rooms[roomid]', rooms[roomId])
+        rooms[roomId].status = statuses.GameOver;
+        if (winner === '') winner = 'Draw';
+        rooms[roomId].scores[winner]++;
     });
 
+    socket.on('restartGame', ({ roomId }) => {
 
-    function createRoom(room, uuid) {
+        const room = rooms[roomId];
+        room.state = Array(9).fill('').map(x => x);
 
-        console.log("room: ", room, "uuid: ", uuid);
-        if (!rooms[uuid]) {
-            rooms[uuid] = { name: room, players: [], status: 'NotStarted' };
-            // roms.push(new Room(uuid,[],'',[]));
+        io.to(roomId).emit('start', { turn: rooms[roomId].players[0] });
+        io.to(roomId).emit('roomStatus', rooms[roomId]);
+    })
+
+    function createRoom(room, roomId) {
+
+        console.log("room: ", room, "uuid: ", roomId);
+        if (!rooms[roomId]) {
+            rooms[roomId] = { name: room, players: [], status: 'WaitingForOpponent', scores: { X: 0, O: 0, Draw: 0 }, state: Array(9).fill('').map(x => x) };
         }
 
-        if (!rooms[uuid].players.find(x => x === socket.id)) {
-            rooms[uuid].players.push(socket.id);
-            // roms[uuid].players.push(socket.id);
+        if (!rooms[roomId].players.find(x => x === socket.id)) {
+            rooms[roomId].players.push(socket.id);
         }
-        socket.join(uuid);
 
-        io.to(uuid).emit('roomUsers', rooms[uuid].players.map(x => ({ name: users[x], id: x })));
+        // bind connection to room so emit room will send to the binded connections only
+        socket.join(roomId);
 
-        if (rooms[uuid].players.length === 2) {
-            rooms[uuid].status = 'playing';
-            io.to(uuid).emit('start', { turn: rooms[uuid].players[0] });
+        io.to(roomId).emit('roomUsers', rooms[roomId].players.map(x => ({ name: users[x], id: x })));
+
+        if (rooms[roomId].players.length === 2 && rooms[roomId].status !== statuses.Playing) {
+            rooms[roomId].status = statuses.Playing;
+            io.to(roomId).emit('start', { turn: rooms[roomId].players[0] });
         }
+
+        io.to(roomId).emit('roomStatus', rooms[roomId]);
     }
 });
 
@@ -127,8 +175,6 @@ function checkWinner(symbol, gameState) {
     const winnerPatterns = [[0, 1, 2], [3, 4, 5], [6, 7, 8,], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
 
     //0 1 2  //3 4 5  //6 7 8
-    // const cells = document.querySelectorAll('#board td');
-
     return winnerPatterns.some(pattern => {
         return pattern.every(index => gameState[index] === symbol)
     });

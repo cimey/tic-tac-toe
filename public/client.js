@@ -19,24 +19,28 @@ let username = '';
 
 socket.on('connect', () => {
     console.log("Connected to server with ID:", socket.id);
-    // var socketIdElement = document.getElementById('socketId');
-
-    // socketIdElement.innerText = "Socket ID: " + socket.id;
     socket.emit('userConnected', username);
 });
 
 socket.on('userDisconnected', username => {
     console.log("User disconnected:", username);
-    alert("user disconnected", username)
+});
+
+socket.on('playerLeft', socketId => {
+
+    console.log('userLeft', socketId);
+    // socket.emit('updateWinner', { roomId, winner: socket.id === socketId ? yourChar : opponentChar });
+});
+
+socket.on('roomStatus', room => {
+    updateRoomStatus(room);
 });
 
 socket.on('start', ({ turn }) => {
     myTurn = (socket.id === turn);
-
+    gameOver = false;
     yourChar = myTurn ? 'O' : 'X';
     opponentChar = !myTurn ? 'O' : 'X';
-
-    alert("Game started. Your turn: " + myTurn);
     updateTurnDisplay();
 });
 
@@ -58,18 +62,21 @@ socket.on('roomUsers', roomUsers => {
         let div = document.createElement('div');
         const isCurrUser = user.id === socket.id;
         div.classList.add('user-box');
-        if (isCurrUser) div.classList.add('you');
 
         div.innerText = `User ${idx + 1}: ${user.name} ${isCurrUser ? ' (You)' : ''}`;
+        if (isCurrUser) {
+            div.classList.add('you');
+
+
+            let leaveRoomBtn = document.createElement('button');
+
+            leaveRoomBtn.innerText = 'Leave Room';
+            leaveRoomBtn.onclick = () => leaveRoom();
+
+            div.appendChild(leaveRoomBtn)
+        }
         userListDiv.appendChild(div);
     });
-
-    let leaveRoomBtn = document.createElement('button');
-
-    leaveRoomBtn.innerText = 'Leave Room';
-    leaveRoomBtn.onclick = () => leaveRoom();
-    userListDiv.appendChild(leaveRoomBtn);
-
 
     userListDiv.style.display = 'block';
 });
@@ -109,7 +116,7 @@ socket.on('roomList', rooms => {
 
 socket.on('update', ({ index, state }) => {
 
-    const cell = document.querySelectorAll('#board td').forEach((cell, idx) => { cell.innerText = state[idx] });
+    document.querySelectorAll('#board td').forEach((cell, idx) => { cell.innerText = state[idx] });
     gameState = state;
     myTurn = true;
     updateTurnDisplay();
@@ -127,7 +134,8 @@ socket.on('gameOver', ({ winner }) => {
         return;
     }
     turnElement.innerText = "It's a draw!";
-})
+});
+
 document.querySelectorAll('#board td').forEach(cell => {
     cell.addEventListener('click', () => {
         if (!myTurn || cell.innerText !== "" || gameOver) return;
@@ -206,8 +214,8 @@ function resetBoard() {
     });
 
     gameOver = false;
-
-    socket.emit
+    gameState = Array(9).fill('').map(x => x);
+    socket.emit('restartGame', { roomId })
 }
 function generateUUID() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -216,7 +224,24 @@ function generateUUID() {
         return v.toString(16);
     });
 }
+function updateRoomStatus(room) {
 
+    const waitingDiv = document.getElementById('waitingDiv');
+    if (room.players.length < 2) {
+
+        waitingDiv.style.display = 'block';
+    }
+    else {
+        waitingDiv.style.display = 'none';
+    }
+
+    const scoreDiv = document.getElementById("score");
+    document.querySelectorAll('#board td').forEach((cell, idx) => { cell.innerText = room.state[idx] });
+    gameState = room.state;
+
+    scoreDiv.innerText = `Score: O: ${room.scores['O']} X: ${room.scores['X']}, Draw: ${room.scores['Draw']}`
+    document.getElementById('status').innerText = room.status;
+}
 window.onload = () => {
 
     const savedName = sessionStorage.getItem("username");

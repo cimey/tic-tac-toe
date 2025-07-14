@@ -28,16 +28,23 @@
         <ul id="room-list"></ul>
       </div>
 
-
       <div>
         <input type="text" id="new-room" style="width: 60%;" placeholder="Create new room">
         <button onclick="createRoom()" style="width: 30%;">Add Room</button>
       </div>
 
     </div>
+    <div id="waitingDiv" class="modal">
+      <div class="modal-content">
+        <h2>Waiting For Second Player</h2>
+        <p>Game start when 2 players exist in room</p>
+      </div>
+    </div>
 
-    <div style="display:none;" id="game">
-      <div id="turn">Your turn</div>
+    <div id="score"> </div>
+    <div style="display:none;" class="game-board" id="game">
+      <div id="status"></div>
+      <div id="turn"></div>
       <table id="board">
         <tr>
           <td data-index="0"></td>
@@ -55,7 +62,7 @@
           <td data-index="8"></td>
         </tr>
       </table>
-      <button (click)="resetGame()" id="reset-game-btn" style="display: none;">Reset Game</button>
+      <button onclick="resetBoard()" id="reset-game-btn" style="display: none;">Restart Game</button>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
